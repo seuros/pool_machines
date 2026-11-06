@@ -1,0 +1,12 @@
+[package]
+name = "pool-machines"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Bounded resource-slot checkout, recycling, and draining"
+readme = "README.md"
+[dependencies]
+flow-machines.workspace = true
+[lints]
+workspace = true

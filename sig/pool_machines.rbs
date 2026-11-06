@@ -1,0 +1,16 @@
+module PoolMachines
+  VERSION: String
+  # Opaque checkout result; direct construction is unsupported.
+  class Handle
+    def slot: () -> Integer
+  end
+  class Pool
+    def self.new: () -> instance
+    def register: (Integer slot, Integer now_ns) -> bool
+    def checkout: (Integer now_ns) -> Handle?
+    def checkin: (Handle handle, Integer now_ns) -> String
+    def begin_drain: () -> nil
+    def retire_idle: (Integer now_ns, Integer idle_for_ns) -> Integer?
+    def checked_out: () -> Integer
+  end
+end
