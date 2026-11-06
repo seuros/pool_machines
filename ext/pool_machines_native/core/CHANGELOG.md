@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/seuros/pool_machines/compare/pool-machines-v0.2.1...pool-machines-v0.2.2) (2026-11-06)
+
+
+### Bug Fixes
+
+* crates.io keywords and categories for the core ([e65b159](https://github.com/seuros/pool_machines/commit/e65b1592ae2868c0acea23df562fab5b43dab71f))
+
 ## [0.2.1](https://github.com/seuros/pool_machines/compare/pool-machines-v0.2.0...pool-machines-v0.2.1) (2026-11-06)
 
 
