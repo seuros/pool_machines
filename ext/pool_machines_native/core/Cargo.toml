@@ -7,6 +7,8 @@ license.workspace = true
 description = "Bounded resource-slot checkout, recycling, and draining"
 readme = "README.md"
 exclude = ["src/**/tests.rs", "tests/"]
+keywords = ["pool", "resource-pool", "draining", "no-std"]
+categories = ["no-std", "algorithms", "concurrency"]
 [dependencies]
 flow-machines.workspace = true
 [lints]
