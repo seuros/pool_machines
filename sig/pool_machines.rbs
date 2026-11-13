@@ -1,16 +1,57 @@
 module PoolMachines
   VERSION: String
-  # Opaque checkout result; direct construction is unsupported.
+
+  # Refusals: the call was not honoured and changed nothing, the observed
+  # clock included. Every reason has its own symbol; there is no catch-all.
+  type refusal = :draining | :time_regression | :unknown_slot | :busy | :exhausted | :stale
+
+  # Mirrors the core's `Handle`: names one checkout on the pool that issued it
+  # and carries that pool's scope. Opaque; it cannot be built or copied by
+  # hand. A pool in another scope answers :stale to it.
   class Handle
+    # The slot to fetch from your own storage.
     def slot: () -> Integer
+    # The scope of the pool that issued it, 0..65535.
+    def scope: () -> Integer
   end
+
   class Pool
-    def self.new: () -> instance
-    def register: (Integer slot, Integer now_ns) -> bool
-    def checkout: (Integer now_ns) -> Handle?
-    def checkin: (Handle handle, Integer now_ns) -> String
-    def begin_drain: () -> nil
-    def retire_idle: (Integer now_ns, Integer idle_for_ns) -> Integer?
+    CAPACITY: Integer
+
+    # Scope zero, every slot vacant, nothing issued.
+    def self.new: () -> Pool
+    # `scope` is an Integer in 0..65535: TypeError otherwise, RangeError
+    # outside the range.
+    def self.with_scope: (Integer scope) -> Pool
+    # Continues `scope` after a restart from a saved `issued` count. Restores
+    # only the handle sequence: every slot is vacant. RangeError when `issued`
+    # is above 2**48 - 1.
+    def self.resumed: (Integer scope, Integer issued) -> Pool
+    # The scope carried by every Handle this pool issues.
+    def scope: () -> Integer
+    # Handles issued in this scope so far: the count to save for `resumed`.
+    def issued: () -> Integer
+    def capacity: () -> Integer
     def checked_out: () -> Integer
+    def draining?: () -> bool
+
+    # Times are Integer nanoseconds of a monotonic clock, instants and spans.
+    # Honoured: :registered, or :already_idle for a slot that already holds an
+    # idle resource (a repeat that changes nothing). Refused: :draining,
+    # :time_regression, :unknown_slot, :busy.
+    def register: (Integer slot, Integer now)
+                -> (:registered | :already_idle | :draining | :time_regression | :unknown_slot | :busy)
+    # Honoured: a Handle, or nil when nothing is idle (both record `now`).
+    # Refused: :draining, :time_regression, :exhausted.
+    def checkout: (Integer now) -> (Handle | nil | :draining | :time_regression | :exhausted)
+    # Honoured: :idle (keep the resource) or :retire (destroy it, the pool is
+    # draining). Refused: :stale, a repeat and a Handle of another scope
+    # included, and :time_regression.
+    def checkin: (Handle handle, Integer now) -> (:idle | :retire | :stale | :time_regression)
+    # Never refuses. :already_draining is a repeat that changes nothing.
+    def begin_drain: () -> (:begun | :already_draining)
+    # Honoured: the retired slot, or nil when nothing is old enough (both
+    # record `now`). Refused: :time_regression.
+    def retire_idle: (Integer now, Integer idle_for) -> (Integer | nil | :time_regression)
   end
 end
