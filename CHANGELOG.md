@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.0](https://github.com/seuros/pool_machines/compare/pool_machines/v0.1.3...pool_machines/v0.2.0) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* converted to the fleet conventions. One exhaustive Refusal per crate, Result from every operation that can refuse, a refusal changes nothing, provable idempotent repeats are honoured, Ruby mirrors the core. No compatibility aliases. Requires flow-machines >= 0.3. Handles are issued through periscope-machines; Ruby answers symbols and no longer raises on a stale handle.
+
+### Features
+
+* one Refusal, scoped handles, and refusals that leave the clock alone ([f9e176a](https://github.com/seuros/pool_machines/commit/f9e176ae029835068e43bf4af75c3967fea56545))
+
 ## [0.1.3](https://github.com/seuros/pool_machines/compare/pool_machines/v0.1.2...pool_machines/v0.1.3) (2026-11-06)
 
 
