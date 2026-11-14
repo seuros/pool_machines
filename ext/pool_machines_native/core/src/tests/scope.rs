@@ -31,8 +31,8 @@ fn a_handle_of_another_scope_or_never_issued_is_stale() {
     let from_a = checked_out(&mut a, 1);
     let from_b = checked_out(&mut b, 1);
     // Same slot, same sequence number, different scope.
-    refused(&mut b, Refusal::Stale, |p| p.checkin(from_a, at(2)));
-    refused(&mut a, Refusal::Stale, |p| p.checkin(from_b, at(2)));
+    refuses(&mut b, Refusal::Stale, |p| p.checkin(from_a, at(2)));
+    refuses(&mut a, Refusal::Stale, |p| p.checkin(from_b, at(2)));
     // Forged: a sequence the pool has not reached, sequence zero, a slot it lacks.
     let ahead = Handle {
         slot: 0,
@@ -47,7 +47,7 @@ fn a_handle_of_another_scope_or_never_issued_is_stale() {
         key: from_a.key,
     };
     for forged in [ahead, zero, elsewhere] {
-        refused(&mut a, Refusal::Stale, |p| p.checkin(forged, at(2)));
+        refuses(&mut a, Refusal::Stale, |p| p.checkin(forged, at(2)));
     }
     assert_eq!(a.checkin(from_a, at(2)), Ok(Returned::Idle));
     assert_eq!(b.checkin(from_b, at(2)), Ok(Returned::Idle));
@@ -78,12 +78,12 @@ fn a_resumed_pool_continues_the_sequence_and_refuses_earlier_handles() {
     );
     // Nothing is registered; the clock starts over.
     assert_eq!(resumed.checkout(at(0)), Ok(None));
-    refused(&mut resumed, Refusal::Stale, |p| p.checkin(before, at(0)));
+    refuses(&mut resumed, Refusal::Stale, |p| p.checkin(before, at(0)));
     assert_eq!(resumed.register(0, at(0)), Ok(Registration::Registered));
     let after = checked_out(&mut resumed, 0);
     assert_eq!(after.key, scoped(3, 2));
     // Slot 0 is busy again, but under another id.
-    refused(&mut resumed, Refusal::Stale, |p| p.checkin(before, at(0)));
+    refuses(&mut resumed, Refusal::Stale, |p| p.checkin(before, at(0)));
 
     assert!(Pool::<1>::resumed(3, SEQUENCE_MAX).is_some());
     assert!(Pool::<1>::resumed(3, SEQUENCE_MAX + 1).is_none());
@@ -96,11 +96,11 @@ fn the_last_id_of_a_scope_is_issued_once_and_then_the_scope_is_exhausted() {
     assert_eq!(pool.register(1, at(0)), Ok(Registration::Registered));
     let last = checked_out(&mut pool, 1);
     assert_eq!(last.key, scoped(4, SEQUENCE_MAX));
-    refused(&mut pool, Refusal::Exhausted, |p| p.checkout(at(50)));
+    refuses(&mut pool, Refusal::Exhausted, |p| p.checkout(at(50)));
     assert_eq!(pool.checked_out(), 1);
     // Nothing idle is still an honoured answer on a spent scope.
     let busy = pool.clone();
     assert_eq!(pool.checkin(last, at(1)), Ok(Returned::Idle));
-    refused(&mut pool, Refusal::Exhausted, |p| p.checkout(at(50)));
+    refuses(&mut pool, Refusal::Exhausted, |p| p.checkout(at(50)));
     assert_ne!(pool, busy);
 }

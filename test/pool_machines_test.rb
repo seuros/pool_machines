@@ -101,12 +101,12 @@ class PoolMachinesTest < Minitest::Test
     p = PoolMachines::Pool.new
     last = (2**64) - 1
     {
-      -> { p.register(1.5, 0) } => [TypeError, 'slot must be an Integer, not Float'],
+      -> { p.register(1.5, 0) } => [TypeError, 'slot must be an Integer'],
       -> { p.register(2**64, 0) } => [RangeError, "slot must be in 0..=#{last}"],
       -> { p.register(0, -1) } => [RangeError, "now must be in 0..=#{last}"],
-      -> { p.checkout(nil) } => [TypeError, 'now must be an Integer, not NilClass'],
-      -> { p.retire_idle(0, '1') } => [TypeError, 'idle_for must be an Integer, not String'],
-      -> { p.checkin(1, 2) } => [TypeError, 'handle must be a PoolMachines::Handle, not Integer'],
+      -> { p.checkout(nil) } => [TypeError, 'now must be an Integer'],
+      -> { p.retire_idle(0, '1') } => [TypeError, 'idle_for must be an Integer'],
+      -> { p.checkin(1, 2) } => [TypeError, 'handle must be a PoolMachines::Handle'],
       -> { PoolMachines::Pool.with_scope(65_536) } => [RangeError, 'scope must be in 0..=65535'],
       -> { PoolMachines::Pool.resumed(0, -1) } => [RangeError, "issued must be in 0..=#{last}"]
     }.each do |call, (error, message)|
@@ -124,6 +124,11 @@ class PoolMachinesTest < Minitest::Test
     assert_raises(FrozenError) { p.checkin(h, 2) }
     assert_raises(FrozenError) { p.begin_drain }
     assert_raises(FrozenError) { p.retire_idle(2, 0) }
+    # Frozen is checked before the arguments are converted.
+    assert_raises(FrozenError) { p.register(-1, 0.5) }
+    assert_raises(FrozenError) { p.checkout(nil) }
+    assert_raises(FrozenError) { p.checkin(Object.new, '2') }
+    assert_raises(FrozenError) { p.retire_idle(-1, nil) }
     assert_equal 1, p.checked_out
     assert_equal 1, p.issued
     refute_predicate p, :draining?

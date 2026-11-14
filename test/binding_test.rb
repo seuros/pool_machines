@@ -53,7 +53,7 @@ class BindingTest < Minitest::Test
     end
     assert_equal [1, 1, false], state(p)
     # A singleton class on the real handle does not change what it is, and a
-    # redefined `==` on a forged class fools nothing: classes compare by pointer.
+    # redefined `==` on a forged class fools nothing: classes compare natively.
     def h.note = :mine
     forged_class.define_singleton_method(:==) { |_| true }
     assert_equal :idle, p.checkin(h, 2)

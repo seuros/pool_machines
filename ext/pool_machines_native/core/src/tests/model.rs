@@ -2,27 +2,13 @@
 
 use std::vec::Vec;
 
+use matryona_machines::testing::SplitMix64;
+
 use super::*;
 
-/// Deterministic splitmix64 stream; the tests own their draws.
-struct Rng(u64);
-
-impl Rng {
-    fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-
-    fn below(&mut self, bound: u64) -> u64 {
-        self.next() % bound
-    }
-
-    fn pick(&mut self, len: usize) -> usize {
-        usize::try_from(self.below(len as u64)).unwrap_or(0)
-    }
+/// A draw in `0..len`.
+fn pick(rng: &mut SplitMix64, len: usize) -> usize {
+    usize::try_from(rng.below(len as u64)).unwrap_or(0)
 }
 
 /// Independent reference: two plain lists, no slots array.
@@ -125,7 +111,7 @@ const SLOTS: usize = 5;
 /// One run: a pool and its model fed the same calls, the clock mostly
 /// advancing and sometimes regressing, handles sometimes spent or forged.
 fn run(seed: u64, scope: u16, start: u64, steps: usize) {
-    let mut rng = Rng(seed);
+    let mut rng = SplitMix64::new(seed);
     let mut pool = Pool::<SLOTS>::resumed(scope, start).expect("pool");
     let mut model = Model {
         idle: Vec::new(),
@@ -162,7 +148,7 @@ fn run(seed: u64, scope: u16, start: u64, steps: usize) {
         let before = pool.clone();
         let unchanged = match rng.below(16) {
             0..=3 => {
-                let slot = rng.pick(SLOTS + 2);
+                let slot = pick(&mut rng, SLOTS + 2);
                 let expected = model.register(slot, now);
                 assert_eq!(pool.register(slot, at(now)), expected);
                 expected != Ok(Registration::Registered)
@@ -178,7 +164,7 @@ fn run(seed: u64, scope: u16, start: u64, steps: usize) {
                 expected.is_err()
             }
             8..=11 => {
-                let handle = handles[rng.pick(handles.len())];
+                let handle = handles[pick(&mut rng, handles.len())];
                 let expected = model.checkin(handle.slot, handle.key, now);
                 assert_eq!(pool.checkin(handle, at(now)), expected);
                 expected.is_err()
