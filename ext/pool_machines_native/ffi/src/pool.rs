@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 
 use magnus::{Error, RModule, Ruby, Value, function, method, prelude::*, typed_data::Obj};
-use matryona_machines::ruby::{Class, Registry, Symbols, duration, exact_typed, integer, keep};
+use matryona_machines::ruby::{
+    Class, Registry, Symbols, duration, exact_typed_with, integer, keep,
+};
 use pool_machines::{DrainBegin, Handle, Refusal, Registration, Returned};
 
 const CAPACITY: usize = 32;
@@ -71,13 +73,18 @@ struct Classes {
 
 static CLASSES: Registry<Classes> = Registry::new("pool_machines");
 
-/// `value` when it is exactly a `PoolMachines::Handle`: `TypeError` for
-/// anything else, a subclass included. Only the binding builds one, from a
-/// handle the core issued, so its contents need no further check.
+/// `value` when it is exactly a `PoolMachines::Handle`: `TypeError` naming
+/// the class received for anything else, a subclass included. Only the
+/// binding builds one, from a handle the core issued, so its contents need
+/// no further check.
 fn issued(ruby: &Ruby, value: Value) -> Result<Handle, Error> {
     let class = CLASSES.get(ruby)?.handle.get(ruby);
-    let handle: Obj<Issued> =
-        exact_typed(ruby, value, class, "handle must be a PoolMachines::Handle")?;
+    let handle = exact_typed_with::<Issued>(ruby, value, class, || {
+        format!(
+            "handle must be a PoolMachines::Handle, not {}",
+            value.class()
+        )
+    })?;
     Ok(handle.0)
 }
 

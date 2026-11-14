@@ -106,7 +106,9 @@ class PoolMachinesTest < Minitest::Test
       -> { p.register(0, -1) } => [RangeError, "now must be in 0..=#{last}"],
       -> { p.checkout(nil) } => [TypeError, 'now must be an Integer'],
       -> { p.retire_idle(0, '1') } => [TypeError, 'idle_for must be an Integer'],
-      -> { p.checkin(1, 2) } => [TypeError, 'handle must be a PoolMachines::Handle'],
+      -> { p.checkin(1, 2) } => [TypeError, 'handle must be a PoolMachines::Handle, not Integer'],
+      -> { p.checkin(nil, 2) } => [TypeError, 'handle must be a PoolMachines::Handle, not NilClass'],
+      -> { p.checkin(:h, 2) } => [TypeError, 'handle must be a PoolMachines::Handle, not Symbol'],
       -> { PoolMachines::Pool.with_scope(65_536) } => [RangeError, 'scope must be in 0..=65535'],
       -> { PoolMachines::Pool.resumed(0, -1) } => [RangeError, "issued must be in 0..=#{last}"]
     }.each do |call, (error, message)|
