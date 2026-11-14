@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0](https://github.com/seuros/pool_machines/compare/pool_machines/v0.3.0...pool_machines/v0.4.0) (2026-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* adopt matryona-machines 0.2 (Class::pin, exact_typed, symbols!)
+
+### Features
+
+* adopt matryona-machines 0.2 (Class::pin, exact_typed, symbols!) ([46a30f5](https://github.com/seuros/pool_machines/commit/46a30f5f8e7e2ed55852af8a510e036bf2b0904f))
+
 ## [0.3.0](https://github.com/seuros/pool_machines/compare/pool_machines/v0.2.0...pool_machines/v0.3.0) (2026-11-14)
 
 
