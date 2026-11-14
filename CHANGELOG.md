@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0](https://github.com/seuros/pool_machines/compare/pool_machines/v0.2.0...pool_machines/v0.3.0) (2026-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* drop flow-machines, record no clock on a retiring checkin, Handle sealed, resolved at load and checked by exact class
+
+### Features
+
+* drop flow-machines, record no clock on a retiring checkin, Handle sealed, resolved at load and checked by exact class ([0af2455](https://github.com/seuros/pool_machines/commit/0af2455e73f0279d0c5bdcd8473f489633ae0ae3))
+
 ## [0.2.0](https://github.com/seuros/pool_machines/compare/pool_machines/v0.1.3...pool_machines/v0.2.0) (2026-11-13)
 
 
