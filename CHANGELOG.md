@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.0](https://github.com/seuros/pool_machines/compare/pool_machines/v0.4.0...pool_machines/v0.5.0) (2026-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* name the received class when checkin refuses a handle
+
+### Features
+
+* name the received class when checkin refuses a handle ([572deb9](https://github.com/seuros/pool_machines/commit/572deb9b679f92af73a91f3cde859ba8125525ba))
+
 ## [0.4.0](https://github.com/seuros/pool_machines/compare/pool_machines/v0.3.0...pool_machines/v0.4.0) (2026-11-14)
 
 
