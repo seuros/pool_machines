@@ -1,3 +1,7 @@
+# Slots are Integers a `usize` holds; times, durations and `issued` are
+# Integers in 0..2**64-1 (nanoseconds for times and durations); scopes are
+# Integers in 0..65535. TypeError for anything else, RangeError outside the
+# range, and every message names the argument.
 module PoolMachines
   VERSION: String
 
@@ -6,7 +10,8 @@ module PoolMachines
   type refusal = :draining | :time_regression | :unknown_slot | :busy | :exhausted | :stale
 
   # Mirrors the core's `Handle`: names one checkout on the pool that issued it
-  # and carries that pool's scope. Opaque; it cannot be built or copied by
+  # and carries that pool's scope. Opaque and sealed (subclassing raises
+  # TypeError, no `allocate`); it cannot be built, copied or marshalled by
   # hand. A pool in another scope answers :stale to it.
   class Handle
     # The slot to fetch from your own storage.
@@ -37,16 +42,17 @@ module PoolMachines
 
     # Times are Integer nanoseconds of a monotonic clock, instants and spans.
     # Honoured: :registered, or :already_idle for a slot that already holds an
-    # idle resource (a repeat that changes nothing). Refused: :draining,
-    # :time_regression, :unknown_slot, :busy.
+    # idle resource (a repeat that changes nothing). Only :registered records
+    # `now`. Refused: :draining, :time_regression, :unknown_slot, :busy.
     def register: (Integer slot, Integer now)
                 -> (:registered | :already_idle | :draining | :time_regression | :unknown_slot | :busy)
     # Honoured: a Handle, or nil when nothing is idle (both record `now`).
     # Refused: :draining, :time_regression, :exhausted.
     def checkout: (Integer now) -> (Handle | nil | :draining | :time_regression | :exhausted)
-    # Honoured: :idle (keep the resource) or :retire (destroy it, the pool is
-    # draining). Refused: :stale, a repeat and a Handle of another scope
-    # included, and :time_regression.
+    # Honoured: :idle (keep the resource; records `now`) or :retire (destroy
+    # it, the pool is draining; records no clock). Refused: :stale, a repeat
+    # and a Handle of another scope included, and :time_regression. TypeError
+    # for anything that is not exactly a Handle, a subclass included.
     def checkin: (Handle handle, Integer now) -> (:idle | :retire | :stale | :time_regression)
     # Never refuses. :already_draining is a repeat that changes nothing.
     def begin_drain: () -> (:begun | :already_draining)

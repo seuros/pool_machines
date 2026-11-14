@@ -6,9 +6,8 @@ extern crate std;
 
 mod refusal;
 
-use core::{num::NonZeroU32, time::Duration};
+use core::time::Duration;
 
-use flow_machines::CreditWindow;
 use periscope_machines::{Issuer, scope_of};
 
 pub use refusal::Refusal;
@@ -76,11 +75,10 @@ pub enum DrainBegin {
     AlreadyDraining,
 }
 
-/// Slot lifecycle plus bounded checkout accounting.
+/// Slot lifecycle: each slot is vacant, idle, or checked out.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pool<const N: usize> {
     slots: [Slot; N],
-    credits: CreditWindow,
     issuer: Issuer,
     observed: Duration,
     draining: bool,
@@ -122,11 +120,13 @@ impl<const N: usize> Pool<N> {
         Self::build(Issuer::resumed(scope, issued)?)
     }
 
+    /// `N` is in `1..=u32::MAX`, so [`Pool::checked_out`] always fits a `u32`.
     fn build(issuer: Issuer) -> Option<Self> {
-        let count = u32::try_from(N).ok()?;
+        if !u32::try_from(N).is_ok_and(|count| count > 0) {
+            return None;
+        }
         Some(Self {
             slots: [Slot::Vacant; N],
-            credits: CreditWindow::new(NonZeroU32::new(count)?),
             issuer,
             observed: Duration::ZERO,
             draining: false,
@@ -152,10 +152,16 @@ impl<const N: usize> Pool<N> {
         N
     }
 
-    /// Number of outstanding checkouts.
+    /// Number of outstanding checkouts: the busy slots. O(N).
     #[must_use]
-    pub const fn checked_out(&self) -> u32 {
-        self.credits.in_flight()
+    pub fn checked_out(&self) -> u32 {
+        let busy = self
+            .slots
+            .iter()
+            .filter(|state| matches!(state, Slot::Busy(_)))
+            .count();
+        // Every constructor holds N to `1..=u32::MAX`, so the count fits.
+        u32::try_from(busy).unwrap_or(u32::MAX)
     }
 
     /// Whether [`Pool::begin_drain`] was called.
@@ -223,14 +229,11 @@ impl<const N: usize> Pool<N> {
             self.observed = now;
             return Ok(None);
         };
-        let mut credits = self.credits.clone();
-        credits.try_acquire(NonZeroU32::MIN).map_err(credit)?;
         // Last check: an id is only spent on a checkout that is honoured.
         let key = match self.issuer.issue() {
             Ok(key) => key,
             Err(periscope_machines::Refusal::Exhausted) => return Err(Refusal::Exhausted),
         };
-        self.credits = credits;
         self.observed = now;
         self.slots[slot] = Slot::Busy(key);
         Ok(Some(Handle { slot, key }))
@@ -245,6 +248,10 @@ impl<const N: usize> Pool<N> {
     /// last two before any slot is read). A repeated `checkin` is never
     /// honoured: the pool keeps nothing about a checkout once it is returned.
     /// [`Refusal::TimeRegression`] for a live handle and an earlier `now`.
+    ///
+    /// [`Returned::Idle`] records `now`: the slot is idle since `now`.
+    /// [`Returned::Retire`] does not: retiring answers the same whatever the
+    /// time, so a later call may still show an instant before this one.
     pub fn checkin(&mut self, handle: Handle, now: Duration) -> Result<Returned, Refusal> {
         if !self.issuer.owns(handle.key) {
             return Err(Refusal::Stale);
@@ -253,14 +260,12 @@ impl<const N: usize> Pool<N> {
             return Err(Refusal::Stale);
         }
         self.check_time(now)?;
-        let mut credits = self.credits.clone();
-        credits.release(NonZeroU32::MIN).map_err(credit)?;
-        self.credits = credits;
-        self.observed = now;
         if self.draining {
+            // Retiring holds whatever the time: the clock is not recorded.
             self.slots[handle.slot] = Slot::Vacant;
             Ok(Returned::Retire)
         } else {
+            self.observed = now;
             self.slots[handle.slot] = Slot::Idle(now);
             Ok(Returned::Idle)
         }
@@ -312,21 +317,6 @@ impl<const N: usize> Pool<N> {
             return Err(Refusal::TimeRegression);
         }
         Ok(())
-    }
-}
-
-/// What a refusal of the checkout window means to the pool.
-///
-/// The pool keeps exactly one credit per busy slot, so the window agrees with
-/// the slots and neither answer is reachable through the public API. They are
-/// mapped rather than asserted: a pool that ever disagreed with its window
-/// refuses and stays as it was.
-const fn credit(refusal: flow_machines::Refusal) -> Refusal {
-    match refusal {
-        // No credit left: every slot's resource is checked out.
-        flow_machines::Refusal::Insufficient { .. } => Refusal::Busy,
-        // No credit out: there is no checkout to return.
-        flow_machines::Refusal::ExceedsInFlight { .. } => Refusal::Stale,
     }
 }
 

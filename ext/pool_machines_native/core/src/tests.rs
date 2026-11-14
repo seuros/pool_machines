@@ -2,6 +2,8 @@
 mod model;
 mod scope;
 
+use core::assert_matches;
+
 use super::*;
 
 fn at(t: u64) -> Duration {
@@ -96,9 +98,9 @@ fn draining_retires_returns_without_reclaiming_busy_resources() {
 
 #[test]
 fn idle_expiry_picks_the_lowest_old_enough_slot() {
-    assert!(Pool::<0>::new().is_none());
-    assert!(Pool::<0>::with_scope(1).is_none());
-    assert!(Pool::<0>::resumed(1, 0).is_none());
+    assert_eq!(Pool::<0>::new(), None);
+    assert_eq!(Pool::<0>::with_scope(1), None);
+    assert_eq!(Pool::<0>::resumed(1, 0), None);
     let mut pool = pool::<2>();
     assert_eq!(pool.register(1, at(1)), Ok(Registration::Registered));
     assert_eq!(pool.register(0, at(2)), Ok(Registration::Registered));
@@ -157,32 +159,54 @@ fn stale_handles_never_advance_the_clock() {
     refused(&mut pool, Refusal::Stale, |p| p.checkin(handle, at(100)));
     // Stale wins over a regressed clock: the handle names nothing either way.
     refused(&mut pool, Refusal::Stale, |p| p.checkin(handle, at(0)));
-    assert!(pool.checkout(at(3)).expect("honoured").is_some());
+    assert_matches!(pool.checkout(at(3)), Ok(Some(_)));
+}
+
+/// `Retire` answers the same whatever the time, so it records no clock:
+/// two pools that retire the same checkout at different instants are equal.
+#[test]
+fn a_retiring_checkin_records_no_clock() {
+    let mut early = pool::<1>();
+    assert_eq!(early.register(0, at(1)), Ok(Registration::Registered));
+    let handle = checked_out(&mut early, 2);
+    assert_eq!(early.begin_drain(), DrainBegin::Begun);
+    let mut late = early.clone();
+    assert_eq!(early.checkin(handle, at(2)), Ok(Returned::Retire));
+    assert_eq!(late.checkin(handle, at(50)), Ok(Returned::Retire));
+    assert_eq!(late, early);
+    assert_eq!(late.retire_idle(at(3), Duration::ZERO), Ok(None));
+    // An idle checkin does record it.
+    let mut idle = pool::<1>();
+    assert_eq!(idle.register(0, at(1)), Ok(Registration::Registered));
+    let handle = checked_out(&mut idle, 2);
+    assert_eq!(idle.checkin(handle, at(50)), Ok(Returned::Idle));
+    refused(&mut idle, Refusal::TimeRegression, |p| p.checkout(at(49)));
 }
 
 #[test]
-fn window_refusals_map_onto_the_pool_refusal() {
-    use flow_machines::Refusal as Window;
-    assert_eq!(credit(Window::Insufficient { available: 0 }), Refusal::Busy);
-    assert_eq!(
-        credit(Window::ExceedsInFlight { in_flight: 0 }),
-        Refusal::Stale
-    );
-}
-
-#[test]
-fn refusals_display_and_are_errors() {
+fn refusals_describe_themselves() {
     use std::string::ToString;
-    let all = [
-        Refusal::Draining,
-        Refusal::TimeRegression,
-        Refusal::UnknownSlot,
-        Refusal::Busy,
-        Refusal::Exhausted,
-        Refusal::Stale,
+    let cases = [
+        (Refusal::Draining, "the pool is draining"),
+        (
+            Refusal::TimeRegression,
+            "now is earlier than the observed clock",
+        ),
+        (
+            Refusal::UnknownSlot,
+            "slot index is not one of the pool's slots",
+        ),
+        (Refusal::Busy, "the slot's resource is checked out"),
+        (
+            Refusal::Exhausted,
+            "every handle id of this scope has been issued",
+        ),
+        (
+            Refusal::Stale,
+            "the handle names no live checkout of this pool",
+        ),
     ];
-    for refusal in all {
-        let error: &dyn core::error::Error = &refusal;
-        assert_ne!(error.to_string(), "");
+    for (refusal, text) in cases {
+        assert_eq!(refusal.to_string(), text);
     }
 }

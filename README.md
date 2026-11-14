@@ -197,7 +197,7 @@ pool.register(9_000, 999) # => :unknown_slot
 pool.register(1, 5)       # => :registered, the refusals above didn't touch the clock
 ```
 
-A refusal never moves the clock. An honoured call does, and that includes the two that can come back empty-handed: `checkout` answering `nil` means "nothing was idle at `now`", and `retire_idle` answering `nil` means "nothing was old enough at `now`". Both are answers about that instant, so the pool holds you to it afterwards.
+A refusal never moves the clock. An honoured call moves it exactly when its answer depends on `now`, and that includes the two that can come back empty-handed: `checkout` answering `nil` means "nothing was idle at `now`", and `retire_idle` answering `nil` means "nothing was old enough at `now`". Both are answers about that instant, so the pool holds you to it afterwards. The answers that hold whatever the time record nothing: `:already_idle`, `:retire` (closing a returned resource on a draining pool doesn't depend on when), and `begin_drain`, which takes no time at all.
 
 ```ruby
 pool = PoolMachines::Pool.new
@@ -229,26 +229,28 @@ A restarted pool counts from one again, so a handle that outlived the restart co
 
 ### What each call answers
 
-| Call | Honoured | Refused, nothing changed |
-| --- | --- | --- |
-| `register(slot, now)` | `:registered`, or `:already_idle` for a slot already holding an idle resource (nothing changed) | `:draining`, `:time_regression`, `:unknown_slot`, `:busy` |
-| `checkout(now)` | a `Handle`, or `nil` when nothing is idle; both record `now` | `:draining`, `:time_regression`, `:exhausted` |
-| `checkin(handle, now)` | `:idle` (keep it) or `:retire` (close it) | `:stale`, `:time_regression` |
-| `begin_drain` | `:begun`, or `:already_draining` (nothing changed) | never refuses |
-| `retire_idle(now, idle_for)` | the retired slot (Integer), or `nil` when nothing is old enough; both record `now` | `:time_regression` |
-| `checked_out`, `capacity`, `scope`, `issued`, `draining?` | the value | queries, never refuse |
+| Call | Honoured | Records `now` | Refused, nothing changed |
+| --- | --- | --- | --- |
+| `register(slot, now)` | `:registered`, or `:already_idle` for a slot already holding an idle resource (nothing changed) | `:registered` only | `:draining`, `:time_regression`, `:unknown_slot`, `:busy` |
+| `checkout(now)` | a `Handle`, or `nil` when nothing is idle | both | `:draining`, `:time_regression`, `:exhausted` |
+| `checkin(handle, now)` | `:idle` (keep it) or `:retire` (close it) | `:idle` only | `:stale`, `:time_regression` |
+| `begin_drain` | `:begun`, or `:already_draining` (nothing changed) | never | never refuses |
+| `retire_idle(now, idle_for)` | the retired slot (Integer), or `nil` when nothing is old enough | both | `:time_regression` |
+| `checked_out`, `capacity`, `scope`, `issued`, `draining?` | the value | never | queries, never refuse |
 
 `register` checks in that order: a draining pool answers `:draining` whatever the slot. `:exhausted` means this pool has issued all 2**48-1 handles of its scope; none is ever reissued. Every refusal has its own symbol; there is no catch-all.
 
 ## The Rules of the Tender
 
 - **32 slots, numbered 0 to 31.** `Pool::CAPACITY` and `pool.capacity` say so. Slot 32, or any other Integer that names no slot, is `:unknown_slot`.
-- **Every number is an Integer.** Slots, times, and durations; times and durations are nanoseconds. Floats, strings, nil, and NaN raise `TypeError`. Negative values and values at or above `2**64` raise `RangeError`.
+- **Every number is an Integer.** Slots, times, and durations; times and durations are nanoseconds. Floats, strings, nil, and NaN raise `TypeError`. Negative values raise `RangeError`, and so do times and durations at or above `2**64` and slots a `usize` cannot hold (`2**64` on a 64-bit platform, `2**32` on a 32-bit one). A slot that fits but is past the last one is `:unknown_slot`.
 - **Refusals don't raise, and don't change anything.** `:draining`, `:time_regression`, `:unknown_slot`, `:busy`, `:exhausted`, and `:stale` are answers. Not a slot, not a checkout, not an issued handle, not the clock moves on a refusal. Only malformed input raises.
 - **Repeats.** `register` on a slot that is already idle is `:already_idle` and `begin_drain` on a draining pool is `:already_draining`: the pool can see the effect already holds. A second `checkin` is `:stale`: the pool keeps no history of a returned checkout, so it can't prove the repeat.
-- **Handles are opaque and single-use.** You can't construct one or `dup` one. A spent handle, or one from a pool in another scope, is `:stale`.
+- **Handles are opaque and single-use.** You can't construct one, `dup` one or `Marshal` one. `Handle` is sealed (subclassing raises `TypeError`, `allocate` is gone), and `checkin` takes exactly a `PoolMachines::Handle`: anything else, a subclass included, raises `TypeError`. A spent handle, or one from a pool in another scope, is `:stale`.
 - **Scopes.** Give each pool its own with `Pool.with_scope(scope)`; the core cannot pick one. Two pools in the same scope issue the same handles.
 - **Restarts.** Resume from a saved count with `Pool.resumed(scope, issued)`, or give each incarnation a new scope. `resumed` restores the handle sequence only; registering the resources again is yours.
+- **Wrong type is `TypeError`, wrong value is `RangeError`,** and the message names the argument (`slot must be an Integer, not Float`, `now must be in 0..=18446744073709551615`). `ArgumentError` is Ruby's own, for the wrong number of arguments.
+- **The binding never loses work.** Arguments are converted before the core is called, and `checkout` decides on a copy of the pool that it keeps only once the `Handle` exists. The handle is wrapped natively, running no `new` or `initialize`, so a `checkout` that raises has checked nothing out and spent no handle. The `Handle` class is the one defined when the extension loads: reassigning the constant later changes nothing the pool builds or accepts.
 - **Frozen means frozen.** `freeze` the pool and `register`, `checkout`, `checkin`, `begin_drain`, and `retire_idle` raise `FrozenError`. The queries still answer.
 
 ## What You Think You're Doing vs Reality

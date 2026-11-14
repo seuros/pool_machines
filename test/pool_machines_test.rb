@@ -97,6 +97,23 @@ class PoolMachinesTest < Minitest::Test
     assert_equal :idle, p.checkin(h, 2)
   end
 
+  def test_messages_name_the_argument
+    p = PoolMachines::Pool.new
+    last = (2**64) - 1
+    {
+      -> { p.register(1.5, 0) } => [TypeError, 'slot must be an Integer, not Float'],
+      -> { p.register(2**64, 0) } => [RangeError, "slot must be in 0..=#{last}"],
+      -> { p.register(0, -1) } => [RangeError, "now must be in 0..=#{last}"],
+      -> { p.checkout(nil) } => [TypeError, 'now must be an Integer, not NilClass'],
+      -> { p.retire_idle(0, '1') } => [TypeError, 'idle_for must be an Integer, not String'],
+      -> { p.checkin(1, 2) } => [TypeError, 'handle must be a PoolMachines::Handle, not Integer'],
+      -> { PoolMachines::Pool.with_scope(65_536) } => [RangeError, 'scope must be in 0..=65535'],
+      -> { PoolMachines::Pool.resumed(0, -1) } => [RangeError, "issued must be in 0..=#{last}"]
+    }.each do |call, (error, message)|
+      assert_equal message, assert_raises(error, &call).message
+    end
+  end
+
   def test_frozen_mutation
     p = PoolMachines::Pool.new
     p.register(0, 0)
@@ -110,5 +127,21 @@ class PoolMachinesTest < Minitest::Test
     assert_equal 1, p.checked_out
     assert_equal 1, p.issued
     refute_predicate p, :draining?
+  end
+
+  # :retire holds whatever the time, so it records no clock; :idle does.
+  def test_only_an_idle_checkin_records_the_clock
+    p = PoolMachines::Pool.new
+    p.register(0, 0)
+    h = p.checkout(1)
+    p.begin_drain
+    assert_equal :retire, p.checkin(h, 50)
+    assert_nil p.retire_idle(2, 0)
+
+    q = PoolMachines::Pool.new
+    q.register(0, 0)
+    h = q.checkout(1)
+    assert_equal :idle, q.checkin(h, 50)
+    assert_equal :time_regression, q.checkout(49)
   end
 end

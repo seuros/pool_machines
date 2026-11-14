@@ -10,7 +10,6 @@ exclude = ["src/**/tests.rs", "tests/"]
 keywords = ["pool", "resource-pool", "draining", "no-std"]
 categories = ["no-std", "algorithms", "concurrency"]
 [dependencies]
-flow-machines.workspace = true
 periscope-machines.workspace = true
 [lints]
 workspace = true

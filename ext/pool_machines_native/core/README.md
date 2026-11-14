@@ -49,7 +49,7 @@ assert_eq!(other.checkin(handle, at(0)), Err(Refusal::Stale));
   answer `None` otherwise. Each slot is vacant, idle since an instant, or busy
   under one handle. `capacity()` is `N`; `checked_out()` counts busy slots.
 - **Refusals.** `Refusal` is the crate's one refusal type and a refused call
-  changes nothing: not a slot, not a checkout credit, not an issued id, not
+  changes nothing: not a slot, not an issued id, not
   the observed clock. `register` answers `Draining`, `TimeRegression`,
   `UnknownSlot` or `Busy`, checked in that order; `checkout` answers
   `Draining`, `TimeRegression` or `Exhausted`; `checkin` answers `Stale` or
@@ -61,7 +61,8 @@ assert_eq!(other.checkin(handle, at(0)), Err(Refusal::Stale));
 - **Time.** Instants and spans are `core::time::Duration` since an epoch the
   caller picks. The pool keeps the latest instant an honoured call showed it
   and refuses an earlier one as `TimeRegression`. Time is checked without
-  being recorded: only an honoured call moves the clock. The two drain
+  being recorded: only an honoured call moves the clock, and only one whose
+  answer depends on `now` (table below). The two drain
   answers are honoured calls about `now`, so they record it, `Ok(None)`
   included; a refusal never does.
 - **Repeats.** `register` on a slot that already holds an idle resource
@@ -90,11 +91,20 @@ assert_eq!(other.checkin(handle, at(0)), Err(Refusal::Stale));
   every slot is vacant, the clock starts over, every earlier handle is
   `Stale`, and registering the resources again is the caller's job. It is
   `None` when `issued` is beyond `SEQUENCE_MAX`.
-- **Checkout accounting.** Outstanding checkouts are counted in a
-  `flow_machines::CreditWindow`, one credit per busy slot. The window cannot
-  disagree with the slots through this API; its refusals are still mapped
-  onto `Refusal` (`Insufficient` as `Busy`, `ExceedsInFlight` as `Stale`)
-  rather than asserted, so the pool never panics.
+- **Checkout accounting.** The slots are the only record: `checked_out()`
+  counts the busy ones, so there is no second count to drift from them and
+  no invariant arm. The core has no dependency besides `periscope-machines`,
+  and it never panics.
+- **Which answers record the clock.** An honoured answer records `now`
+  exactly when it depends on `now`:
+
+  | Call | Records `now` |
+  | --- | --- |
+  | `register` | `Registered` does (the slot is idle since `now`); `AlreadyIdle` does not, it holds whatever the time |
+  | `checkout` | always when honoured: `Some(handle)` picks the slot idle longest at `now`, `None` says nothing is idle at `now` |
+  | `checkin` | `Idle` does (the slot is idle since `now`); `Retire` does not, retiring holds whatever the time |
+  | `retire_idle` | always when honoured: `Some(slot)` and `None` are both about what is old enough at `now` |
+  | `begin_drain` | takes no time and records none |
 
 The Ruby gem mirrors `Handle` and `Pool` under the same names; unit variants
 are symbols and times are Integer nanoseconds.

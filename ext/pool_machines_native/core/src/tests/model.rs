@@ -25,7 +25,7 @@ impl Rng {
     }
 }
 
-/// Independent reference: two plain lists, no slots array, no credit window.
+/// Independent reference: two plain lists, no slots array.
 struct Model {
     /// `(slot, idle since)`.
     idle: Vec<(usize, u64)>,
@@ -44,6 +44,13 @@ impl Model {
     /// from the crate under test: scope in the top 16 bits, sequence below.
     fn id(&self, sequence: u64) -> u64 {
         (u64::from(self.scope) << 48) | sequence
+    }
+
+    const fn regressed(&self, now: u64) -> Result<(), Refusal> {
+        if now < self.observed {
+            return Err(Refusal::TimeRegression);
+        }
+        Ok(())
     }
 
     fn register(&mut self, slot: usize, now: u64) -> Result<Registration, Refusal> {
@@ -68,9 +75,7 @@ impl Model {
         if self.draining {
             return Err(Refusal::Draining);
         }
-        if now < self.observed {
-            return Err(Refusal::TimeRegression);
-        }
+        self.regressed(now)?;
         let Some(&(slot, since)) = self.idle.iter().min_by_key(|i| (i.1, i.0)) else {
             self.observed = now;
             return Ok(None);
@@ -90,22 +95,18 @@ impl Model {
         if !self.busy.contains(&(slot, id)) {
             return Err(Refusal::Stale);
         }
-        if now < self.observed {
-            return Err(Refusal::TimeRegression);
-        }
+        self.regressed(now)?;
         self.busy.retain(|b| b != &(slot, id));
-        self.observed = now;
         if self.draining {
             return Ok(Returned::Retire);
         }
+        self.observed = now;
         self.idle.push((slot, now));
         Ok(Returned::Idle)
     }
 
     fn retire_idle(&mut self, now: u64, idle_for: u64) -> Result<Option<usize>, Refusal> {
-        if now < self.observed {
-            return Err(Refusal::TimeRegression);
-        }
+        self.regressed(now)?;
         self.observed = now;
         let draining = self.draining;
         let slot = self

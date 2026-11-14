@@ -1,7 +1,7 @@
 use core::fmt;
 
 /// Why a call was not honoured. A refused call changes nothing: not a slot,
-/// not a checkout credit, not an issued handle id, not the observed clock.
+/// not an issued handle id, not the observed clock.
 ///
 /// This is the crate's one refusal type. [`Pool::register`](crate::Pool::register)
 /// answers [`Draining`](Self::Draining), [`TimeRegression`](Self::TimeRegression),
