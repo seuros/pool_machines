@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/seuros/pool_machines/compare/pool_machines/v0.5.0...pool_machines/v0.5.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **deps:** require matryona-machines &gt;= 0.4 ([cff1f7a](https://github.com/seuros/pool_machines/commit/cff1f7a938b6d5f2e47e0e298a1ecdc34eec47fb))
+
 ## [0.5.0](https://github.com/seuros/pool_machines/compare/pool_machines/v0.4.0...pool_machines/v0.5.0) (2026-11-14)
 
 
