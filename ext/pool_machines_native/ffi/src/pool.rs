@@ -209,14 +209,16 @@ impl Pool {
 pub fn define(ruby: &Ruby, module: RModule) -> Result<(), Error> {
     let handle = module.define_class("Handle", ruby.class_object())?;
     handle.undef_default_alloc_func();
+    handle.define_method("slot", method!(Issued::slot, 0))?;
+    handle.define_method("scope", method!(Issued::scope, 0))?;
+    // Fixes magnus's class for each wrapped type now: building a Handle or a
+    // Pool never runs `Object.const_get` later.
     CLASSES.set(
         ruby,
         Classes {
-            handle: Class::pin(ruby, handle),
+            handle: Class::pin_wrapped::<Issued>(ruby, handle)?,
         },
     )?;
-    handle.define_method("slot", method!(Issued::slot, 0))?;
-    handle.define_method("scope", method!(Issued::scope, 0))?;
     let class = module.define_class("Pool", ruby.class_object())?;
     class.undef_default_alloc_func();
     class.const_set("CAPACITY", CAPACITY)?;
@@ -232,5 +234,6 @@ pub fn define(ruby: &Ruby, module: RModule) -> Result<(), Error> {
     class.define_method("checkout", method!(Pool::checkout, 1))?;
     class.define_method("checkin", method!(Pool::checkin, 2))?;
     class.define_method("begin_drain", method!(Pool::begin_drain, 0))?;
-    class.define_method("retire_idle", method!(Pool::retire_idle, 2))
+    class.define_method("retire_idle", method!(Pool::retire_idle, 2))?;
+    Class::pin_wrapped::<Pool>(ruby, class).map(drop)
 }
