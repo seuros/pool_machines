@@ -1,10 +1,9 @@
-#![allow(clippy::expect_used)]
 mod model;
 mod scope;
 
 use core::assert_matches;
 
-use matryona_machines::testing::{refuses, unchanged};
+use matryona_machines::testing::{describes, refuses, unchanged};
 
 use super::*;
 
@@ -178,8 +177,7 @@ fn a_retiring_checkin_records_no_clock() {
 
 #[test]
 fn refusals_describe_themselves() {
-    use std::string::ToString;
-    let cases = [
+    describes(&[
         (Refusal::Draining, "the pool is draining"),
         (
             Refusal::TimeRegression,
@@ -198,8 +196,5 @@ fn refusals_describe_themselves() {
             Refusal::Stale,
             "the handle names no live checkout of this pool",
         ),
-    ];
-    for (refusal, text) in cases {
-        assert_eq!(refusal.to_string(), text);
-    }
+    ]);
 }

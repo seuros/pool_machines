@@ -5,9 +5,10 @@ Gem::Specification.new do |spec|
   spec.version = PoolMachines::VERSION
   spec.authors = ['Abdelkader Boudih']
   spec.email = ['oss@seuros.com']
-  spec.summary = 'Native generation-checked resource-slot policy for Ruby'
-  spec.description = 'Initial native roster model with draining and retirement. ' \
-                     'Caller owns resources and execution. Local sibling Rust checkout required.'
+  spec.summary = 'Generation-checked resource-slot checkout, recycling and draining for Ruby'
+  spec.description = 'Keeps the roster of a resource pool: which slot is busy or idle, which idle slots are old ' \
+                     'enough to retire, and whether a returned handle is stale. The caller owns the ' \
+                     'resources and their lifecycle.'
   spec.homepage = 'https://github.com/seuros/pool_machines'
   spec.license = 'MIT'
   spec.required_ruby_version = '>= 4.0.0'

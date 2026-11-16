@@ -109,6 +109,8 @@ class PoolMachinesTest < Minitest::Test
       -> { p.checkin(1, 2) } => [TypeError, 'handle must be a PoolMachines::Handle, not Integer'],
       -> { p.checkin(nil, 2) } => [TypeError, 'handle must be a PoolMachines::Handle, not NilClass'],
       -> { p.checkin(:h, 2) } => [TypeError, 'handle must be a PoolMachines::Handle, not Symbol'],
+      -> { p.checkin(Object.new.tap { |o| def o.opened = true }, 2) } =>
+        [TypeError, 'handle must be a PoolMachines::Handle, not Object'],
       -> { PoolMachines::Pool.with_scope(65_536) } => [RangeError, 'scope must be in 0..=65535'],
       -> { PoolMachines::Pool.resumed(0, -1) } => [RangeError, "issued must be in 0..=#{last}"]
     }.each do |call, (error, message)|

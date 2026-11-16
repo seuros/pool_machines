@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use magnus::{Error, RModule, Ruby, Value, function, method, prelude::*, typed_data::Obj};
 use matryona_machines::ruby::{
-    Class, Registry, Symbols, duration, exact_typed_with, integer, keep,
+    Class, Registry, Symbols, class_name, duration, exact_typed_with, integer, keep,
 };
 use pool_machines::{DrainBegin, Handle, Refusal, Registration, Returned};
 
@@ -82,7 +82,7 @@ fn issued(ruby: &Ruby, value: Value) -> Result<Handle, Error> {
     let handle = exact_typed_with::<Issued>(ruby, value, class, || {
         format!(
             "handle must be a PoolMachines::Handle, not {}",
-            value.class()
+            class_name(value)
         )
     })?;
     Ok(handle.0)

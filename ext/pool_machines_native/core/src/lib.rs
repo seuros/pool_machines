@@ -1,5 +1,6 @@
 #![no_std]
 #![doc = include_str!("../README.md")]
+#![cfg_attr(not(test), deny(clippy::indexing_slicing))]
 
 #[cfg(test)]
 extern crate std;
@@ -218,14 +219,14 @@ impl<const N: usize> Pool<N> {
         self.check_time(now)?;
         let oldest = self
             .slots
-            .iter()
+            .iter_mut()
             .enumerate()
             .filter_map(|(slot, state)| match state {
-                Slot::Idle(since) => Some((*since, slot)),
+                Slot::Idle(since) => Some((*since, slot, state)),
                 Slot::Vacant | Slot::Busy(_) => None,
             })
-            .min();
-        let Some((_, slot)) = oldest else {
+            .min_by_key(|&(since, slot, _)| (since, slot));
+        let Some((_, slot, state)) = oldest else {
             self.observed = now;
             return Ok(None);
         };
@@ -235,7 +236,7 @@ impl<const N: usize> Pool<N> {
             Err(periscope_machines::Refusal::Exhausted) => return Err(Refusal::Exhausted),
         };
         self.observed = now;
-        self.slots[slot] = Slot::Busy(key);
+        *state = Slot::Busy(key);
         Ok(Some(Handle { slot, key }))
     }
 
@@ -256,17 +257,20 @@ impl<const N: usize> Pool<N> {
         if !self.issuer.owns(handle.key) {
             return Err(Refusal::Stale);
         }
-        if self.slots.get(handle.slot) != Some(&Slot::Busy(handle.key)) {
-            return Err(Refusal::Stale);
-        }
-        self.check_time(now)?;
+        // Judged before the slot is borrowed, answered after the stale check.
+        let time = self.check_time(now);
+        let state = match self.slots.get_mut(handle.slot) {
+            Some(state) if *state == Slot::Busy(handle.key) => state,
+            _ => return Err(Refusal::Stale),
+        };
+        time?;
         if self.draining {
             // Retiring holds whatever the time: the clock is not recorded.
-            self.slots[handle.slot] = Slot::Vacant;
+            *state = Slot::Vacant;
             Ok(Returned::Retire)
         } else {
             self.observed = now;
-            self.slots[handle.slot] = Slot::Idle(now);
+            *state = Slot::Idle(now);
             Ok(Returned::Idle)
         }
     }
@@ -300,14 +304,18 @@ impl<const N: usize> Pool<N> {
         self.check_time(now)?;
         self.observed = now;
         let draining = self.draining;
-        let slot = self.slots.iter().position(|state| match state {
-            Slot::Idle(since) => draining || now.saturating_sub(*since) >= idle_for,
-            Slot::Vacant | Slot::Busy(_) => false,
-        });
-        if let Some(slot) = slot {
-            self.slots[slot] = Slot::Vacant;
-        }
-        Ok(slot)
+        let found = self
+            .slots
+            .iter_mut()
+            .enumerate()
+            .find(|(_, state)| match state {
+                Slot::Idle(since) => draining || now.saturating_sub(*since) >= idle_for,
+                Slot::Vacant | Slot::Busy(_) => false,
+            });
+        Ok(found.map(|(slot, state)| {
+            *state = Slot::Vacant;
+            slot
+        }))
     }
 
     /// Time regression is checked without recording: `observed` moves only
