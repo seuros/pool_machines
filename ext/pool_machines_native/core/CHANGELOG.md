@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/seuros/pool_machines/compare/pool-machines-v0.5.0...pool-machines-v0.5.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* drop slot indexing and name the real class in handle TypeErrors ([f17e7bb](https://github.com/seuros/pool_machines/commit/f17e7bbb58f6f5f4cb3047895cb554b7f2cbb0ca))
+
 ## [0.5.0](https://github.com/seuros/pool_machines/compare/pool-machines-v0.4.0...pool-machines-v0.5.0) (2026-11-14)
 
 
