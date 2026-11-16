@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.3](https://github.com/seuros/pool_machines/compare/pool_machines/v0.5.2...pool_machines/v0.5.3) (2026-11-16)
+
+
+### Bug Fixes
+
+* fix wrapped classes at load so building a value runs no Ruby ([61bdf02](https://github.com/seuros/pool_machines/commit/61bdf02fc2ea1ba944d42f192dff294d73f103f3))
+
 ## [0.5.2](https://github.com/seuros/pool_machines/compare/pool_machines/v0.5.1...pool_machines/v0.5.2) (2026-11-16)
 
 
